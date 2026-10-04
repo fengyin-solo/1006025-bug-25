@@ -54,6 +54,24 @@ export function resetRows(key: string): EntryRow[] {
   return rows
 }
 
+/** 通用存储里是否还挂着某个模块键（旧版航油数据迁移时用来判断要不要清理）。 */
+export function hasGenericKey(key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(allRows(), key)
+}
+
+/**
+ * 从通用存储中摘除一个模块键（缓存与 localStorage 同步删）。
+ * 仅用于该模块已迁到独立数据源的场景：迁移后旧键复活会导致两处各算各的。
+ */
+export function deleteGenericKey(key: string): void {
+  const next = { ...allRows() }
+  delete next[key]
+  cache = next
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  }
+}
+
 export function storageKey(): string {
   return STORAGE_KEY
 }
