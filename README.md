@@ -69,3 +69,26 @@ npm run build
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
 - 想回到初始数据：清掉浏览器里 `airport-ground-ops:entries` 这一项，或调用 `resetModule(模块)`。
+
+## 航油加注月度用量（v2 口径）
+
+航油加注历史上有三处数据源：主登记表、加注用量台账（加注量/金额）、油品规格台账、
+静电接地检查表。v2 把四处数据在**唯一口径层** `src/data/fueling-domain.ts`
+（`reconcileFuelingRows`）按作业编号合并后，再写入新存储键
+`airport-ground-ops:entries:v2`：
+
+- 首次打开 v2 会自动迁移旧的 `airport-ground-ops:entries`，迁移审计（去重清单、回填清单、
+  原始台账快照）存在 `airport-ground-ops:fueling-reconcile-audit`。
+- **存量数据结论：作业明细按新口径重算回填，历史已导出的月度报表留档不改。** 即主数据统一
+  重算（漏加的已完成作业按航班日期回填、重复作业去重、加注量与油品规格对齐），已归档报表
+  作为历史快照保留，之后导出的报表才代表新口径；审计快照保证可追溯。
+- 页面合计与导出文件都只读 `monthlyUsageRows(month)`：当月、`已完成`、按作业编号去重后的
+  规范化数据，两处数字必然一致。
+- 状态流转走 `runFuelingAction`（必须按 `待加注 → 加注中 → 待确认 → 已完成` 顺序，且确认
+  完成前静电接地检查必须合格）；保存时再次经过同一规范化口径。
+- 导出走 `exportMonthlyFuelingUsage(month)`：逐行生成、每行落检查点；失败时报告失败步骤
+  （准备/逐行写入/生成文件/保存文件/登记导出记录）与失败作业，再次导出从断点续行。若中断后
+  源数据被修正，旧分片按签名作废，整体按新值重导，文件里不会出现旧值。检查点键：
+  `airport-ground-ops:fueling-export-checkpoint`。
+- 其它入口（通用 `listEntries` / `exportEntries` / `runAction`）遇到 `fueling` 会直接报错，
+  强制走航油专用口径，保证同一笔记录在任何入口读到的值一致。

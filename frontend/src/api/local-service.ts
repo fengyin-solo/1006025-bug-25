@@ -24,11 +24,18 @@ export function filterRows(rows: EntryRow[], filters: Record<string, string>): E
 }
 
 export function listEntries(key: string, filters: Record<string, string> = {}): PageResult {
+  if (key === 'fueling') {
+    // 航油加注必须带月份并走统一口径，避免其它入口绕开月度用量取数。
+    throw new Error('航油加注列表请使用 listFuelingEntries({ month, filters })，不能走通用列表口径')
+  }
   const matched = filterRows(listRows(key), filters)
   return { items: matched, total: matched.length, page: 1, size: matched.length }
 }
 
 export function runAction(key: string, id: number, action: string): ActionResult {
+  if (key === 'fueling') {
+    return { ok: false, message: '航油加油作业状态流转请使用 runFuelingAction，需同时校验静电接地检查' }
+  }
   const meta = moduleMeta(key)
   const target = meta.actionTargets[action]
   if (!target) {
@@ -57,11 +64,17 @@ export function runAction(key: string, id: number, action: string): ActionResult
 }
 
 export function resetModule(key: string): PageResult {
+  if (key === 'fueling') {
+    throw new Error('航油加注重置由本地数据层的规范化种子负责，不能走通用重置')
+  }
   resetRows(key)
   return listEntries(key)
 }
 
 export function exportEntries(key: string): { filename: string; content: string } {
+  if (key === 'fueling') {
+    throw new Error('航油加注月度用量请使用 exportMonthlyFuelingUsage(month)，保证合计口径与断点续导一致')
+  }
   const meta = moduleMeta(key)
   const header = ['编号', ...meta.fields, '当前状态']
   const lines = [header.join(',')]
